@@ -24,6 +24,25 @@ abstract class Order {
         this.quantity = quantity;
     }
 
+    public int getId() {
+        return this.id;
+    }
+
+    public short getPrice() {
+        return this.price;
+    }
+
+    public int getQuantity() {
+        return this.quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+
+    public abstract void trade(Order against);
+    public abstract void requestTrade(Integer amount);
+
     private static final int ID_PAD = 10;
     private static final int VOLUME_PAD = 13;
     private static final int PRICE_PAD = 7;
@@ -53,6 +72,18 @@ class LimitOrder extends Order {
     public LimitOrder(int id, short price, int quantity) {
        super(id, price, quantity);
     }
+
+    public void trade(Order against) {
+        Integer amount = Math.min(this.getQuantity(), against.getQuantity());
+
+        this.setQuantity(this.getQuantity()-amount);
+        against.requestTrade(amount);
+    }
+
+    public void requestTrade(Integer amount) {
+        assert amount <= this.getQuantity();
+        this.setQuantity(this.getQuantity()-amount);
+    }
 }
 
 class IcebergOrder extends Order {
@@ -64,11 +95,16 @@ class IcebergOrder extends Order {
         this.total_quantity = quantity;
         this.peak_size = peak_size;
     }
+
+    public void trade(Order against) {
+    }
+    public void requestTrade(Integer amount) {
+    }
 }
 
 class OrderBook {
     // Map price to list of orders.
-    private TreeMap<Integer, List<Order>> bids, asks;
+    private TreeMap<Short, List<Order>> bids, asks;
 
     public OrderBook() {
         bids = new TreeMap<>(Comparator.reverseOrder());
@@ -110,15 +146,74 @@ class OrderBook {
         return pr;
     }
 
+    // Adds an order to a book (bids or asks) if not filled.
+    private void addOrderToBook(Order order, TreeMap<Short, List<Order>> book) {
+        if (order.getQuantity() != 0) {
+            Short price = order.getPrice();
+            if (!book.containsKey(price)) {
+                book.put(price, new LinkedList<Order>());
+            }
+            book.get(price).add(order);
+        }
+    }
+
+    private void tradeAtPrice(Short price, Order fillOrder ,List<Order> ordersAtThisPrice, List<String> tradeLog) {
+        while (!ordersAtThisPrice.isEmpty()) {
+            Order orderInBook = ordersAtThisPrice.get(0);
+            // match at this price until exhausted price point, or order filled
+            if (fillOrder.getQuantity() == 0) {
+                return;
+            }
+
+            Integer quantBefore = fillOrder.getQuantity();
+            fillOrder.trade(orderInBook);
+            Integer quantAfter = fillOrder.getQuantity();
+
+            tradeLog.add(makeTradeMessage(fillOrder.getId(), orderInBook.getId(), price, (quantBefore-quantAfter)));
+
+            // place order from back at back of the list if not fully 
+            if (orderInBook.getQuantity() != 0) {
+                ordersAtThisPrice.add(orderInBook);
+            }
+            // pop order from head
+            ordersAtThisPrice.remove(0);
+        }
+    }
+
     // Modifies this OrderBook bids and asks maps
     // Will request IcebergOrder objects to update if traded.
     // Returns list of reulting trades.
     private List<String> matchEngine(ParseOrderResult por) {
         List<String> trades = new LinkedList<String>();
 
-        // match against book
+        if (por.isBuy) {
+            for(Map.Entry<Short,List<Order>> entry : asks.entrySet()) {
+                Short price = entry.getKey();
+                // iterate through sells until price > order.price or order filled
+                if (price > por.order.getPrice() || por.order.getQuantity() == 0) {
+                    break;
+                }
+                List<Order> ordersAtThisPrice = entry.getValue();
 
-        // add to book
+                tradeAtPrice(price, por.order, ordersAtThisPrice, trades);
+            }
+            // if not entirely filled - add to bids book
+            addOrderToBook(por.order, bids);
+        }
+        else {
+            for(Map.Entry<Short,List<Order>> entry : bids.entrySet()) {
+                Short price = entry.getKey();
+                // iterate through sells until price < order.price or order filled
+                if (price < por.order.getPrice() || por.order.getQuantity() == 0) {
+                    break;
+                }
+                List<Order> ordersAtThisPrice = entry.getValue();
+
+                tradeAtPrice(price, por.order, ordersAtThisPrice, trades);
+            }
+            // if not entirely filled - add to asks book
+            addOrderToBook(por.order, asks);
+        }
 
         return trades;
     }
@@ -186,13 +281,13 @@ class OrderBook {
 
         // collect global, ordered list of bids and asks
         List<String> all_bids = new ArrayList<String>();
-        for(Map.Entry<Integer,List<Order>> entry : bids.entrySet()) {
+        for(Map.Entry<Short,List<Order>> entry : bids.entrySet()) {
             for (Order order : entry.getValue()) {
                 all_bids.add(order.prettyPrintBuy());
             }
         }
         List<String> all_asks = new ArrayList<String>();
-        for(Map.Entry<Integer,List<Order>> entry : asks.entrySet()) {
+        for(Map.Entry<Short,List<Order>> entry : asks.entrySet()) {
             for (Order order : entry.getValue()) {
                 all_asks.add(order.prettyPrintSell());
             }
