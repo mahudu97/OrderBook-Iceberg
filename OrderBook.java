@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -102,6 +103,28 @@ class IcebergOrder extends Order {
     }
 }
 
+class TradeMessage {
+    private int buy_id;
+    private int sell_id;
+    private short price;
+    private int quantity;
+
+    public TradeMessage(int buy_id, int sell_id, short price, int quantity) {
+        this.buy_id = buy_id;
+        this.sell_id = sell_id;
+        this.price = price;
+        this.quantity = quantity;
+    }
+
+    public void updateQuantity(int amount) {
+        this.quantity += amount;
+    }
+
+    public String toStr() {
+        return String.valueOf(buy_id)+","+String.valueOf(sell_id)+","+String.valueOf(price)+","+String.valueOf(quantity);
+    }
+}
+
 class OrderBook {
     // Map price to list of orders.
     private TreeMap<Short, List<Order>> bids, asks;
@@ -111,39 +134,33 @@ class OrderBook {
         asks = new TreeMap<>();
     }
 
-    private String makeTradeMessage (int buy_id, int sell_id, short price, int quantity) {
-        return String.valueOf(buy_id)+","+String.valueOf(sell_id)+","+String.valueOf(price)+","+String.valueOf(quantity);
-    }
-
     private static class ParseOrderResult {
         private boolean isBuy;
         private Order order;
     }
 
-    // method assumes order is a csv order (Limit or Iceberg)
+    // assumes order is a csv order (Limit or Iceberg)
     private ParseOrderResult parseOrderLine(String order) {
-        ParseOrderResult pr = new ParseOrderResult();
+        ParseOrderResult por = new ParseOrderResult();
         Scanner reader = new Scanner(order);
         reader.useDelimiter(",");
 
         char buyOrSell = reader.next().charAt(0);
-        pr.isBuy = (buyOrSell == 'B');
+        por.isBuy = (buyOrSell == 'B');
 
         int id = reader.nextInt();
         short price = reader.nextShort();
         int quantity = reader.nextInt();
 
-        // iceberg
         if (reader.hasNextInt()) {
-            pr.order = new IcebergOrder(id, price, quantity, reader.nextInt());
+            por.order = new IcebergOrder(id, price, quantity, reader.nextInt());
         }
-        // limit
         else {
-            pr.order = new LimitOrder(id, price, quantity);
+            por.order = new LimitOrder(id, price, quantity);
         }
 
         reader.close();
-        return pr;
+        return por;
     }
 
     // Adds an order to a book (bids or asks) if not filled.
@@ -157,19 +174,27 @@ class OrderBook {
         }
     }
 
-    private void tradeAtPrice(Short price, Order fillOrder ,List<Order> ordersAtThisPrice, List<String> tradeLog) {
+    private void tradeAtPrice(Short price, Order fillOrder, List<Order> ordersAtThisPrice, List<String> tradeLog) {
+        Map<Integer, TradeMessage> traders = new LinkedHashMap<Integer, TradeMessage>();
+
         while (!ordersAtThisPrice.isEmpty()) {
             Order orderInBook = ordersAtThisPrice.get(0);
+            Integer trader = orderInBook.getId();
             // match at this price until exhausted price point, or order filled
             if (fillOrder.getQuantity() == 0) {
-                return;
+                break;
             }
 
             Integer quantBefore = fillOrder.getQuantity();
             fillOrder.trade(orderInBook);
             Integer quantAfter = fillOrder.getQuantity();
 
-            tradeLog.add(makeTradeMessage(fillOrder.getId(), orderInBook.getId(), price, (quantBefore-quantAfter)));
+            if (traders.containsKey(trader)) {
+                traders.get(trader).updateQuantity((quantBefore-quantAfter));
+            }
+            else {
+                traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, (quantBefore-quantAfter)));
+            }
 
             // place order from back at back of the list if not fully 
             if (orderInBook.getQuantity() != 0) {
@@ -177,6 +202,10 @@ class OrderBook {
             }
             // pop order from head
             ordersAtThisPrice.remove(0);
+        }
+
+        for(Map.Entry<Integer,TradeMessage> entry : traders.entrySet()) {
+            tradeLog.add(entry.getValue().toStr());
         }
     }
 
