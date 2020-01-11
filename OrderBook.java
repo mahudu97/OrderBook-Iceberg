@@ -92,14 +92,31 @@ class IcebergOrder extends Order {
     private int peak_size;
 
     public IcebergOrder(int id, short price, int quantity, int peak_size) {
-        super(id, price, quantity);
+        super(id, price, peak_size);
         this.total_quantity = quantity;
         this.peak_size = peak_size;
     }
 
     public void trade(Order against) {
+        Integer amount = Math.min(this.getQuantity(), against.getQuantity());
+
+        this.setQuantity(this.getQuantity()-amount);
+        this.total_quantity -= amount;
+        against.requestTrade(amount);
+
+        if (this.getQuantity() == 0 && total_quantity > 0) {
+            this.setQuantity(this.peak_size);
+        }
     }
+
     public void requestTrade(Integer amount) {
+        assert amount <= this.getQuantity();
+        this.setQuantity(this.getQuantity()-amount);
+        this.total_quantity -= amount;
+
+        if (this.getQuantity() == 0 && total_quantity > 0) {
+            this.setQuantity(this.peak_size);
+        }
     }
 }
 
