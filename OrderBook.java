@@ -18,6 +18,10 @@ abstract class Order {
     private short price;
     private int quantity;
 
+    private static final int ID_PAD = 10;
+    private static final int VOLUME_PAD = 13;
+    private static final int PRICE_PAD = 7;
+
     private static String padLeft(String s, int n) {
         return String.format("%" + n + "s", s);  
     }
@@ -27,7 +31,7 @@ abstract class Order {
         String q = NumberFormat.getNumberInstance(Locale.US).format(quantity);
         String ident = String.valueOf(id);
 
-        return padLeft(ident, 10)+"|"+padLeft(q, 13)+"|"+padLeft(p, 7);
+        return padLeft(ident, ID_PAD)+"|"+padLeft(q, VOLUME_PAD)+"|"+padLeft(p, PRICE_PAD);
     }
 
     public String prettyPrintSell() {
@@ -35,7 +39,7 @@ abstract class Order {
         String q = NumberFormat.getNumberInstance(Locale.US).format(quantity);
         String ident = String.valueOf(id);
 
-        return padLeft(p, 7)+"|"+padLeft(q, 13)+"|"+padLeft(ident, 10);
+        return padLeft(p, PRICE_PAD)+"|"+padLeft(q, VOLUME_PAD)+"|"+padLeft(ident, ID_PAD);
     }
 }
 
@@ -154,18 +158,24 @@ class OrderBook {
         return String.format("%" + n + "s", s);  
     }
 
+    private static final int BUY_PAD = 32;
+    private static final int SELL_PAD = 32;
+    private static final int ID_PAD = 10;
+    private static final int VOLUME_PAD = 13;
+    private static final int PRICE_PAD = 7;
+
     public String prettyPrint() {
         String table = "";
 
         // add header
         table += "+" + String.join("", Collections.nCopies(65, "-")) + "+\n";
-        table += "|" + padRight(" BUY", 32) + "|" + padRight(" SELL", 32) + "|\n";
-        table += "|" + padRight(" Id", 10);
-        table += "|" + padRight(" Volume", 13);
-        table += "|" + padRight(" Price", 7);
-        table += "|" + padRight(" Price", 7);
-        table += "|" + padRight(" Volume", 13);
-        table += "|" + padRight(" Id", 10);
+        table += "|" + padRight(" BUY", BUY_PAD) + "|" + padRight(" SELL", SELL_PAD) + "|\n";
+        table += "|" + padRight(" Id", ID_PAD);
+        table += "|" + padRight(" Volume", VOLUME_PAD);
+        table += "|" + padRight(" Price", PRICE_PAD);
+        table += "|" + padRight(" Price", PRICE_PAD);
+        table += "|" + padRight(" Volume", VOLUME_PAD);
+        table += "|" + padRight(" Id", ID_PAD);
         table += "|\n";
         table += "+----------+-------------+-------+-------+-------------+----------+\n";
 
@@ -192,18 +202,18 @@ class OrderBook {
                 table += bids_it.next();
             }
             else {
-                table += padLeft("", 10) + "|";
-                table += padLeft("", 13) + "|";
-                table += padLeft("", 7);
+                table += padLeft("", ID_PAD) + "|";
+                table += padLeft("", VOLUME_PAD) + "|";
+                table += padLeft("", PRICE_PAD);
             }
             table += "|";
             if (asks_it.hasNext()) {
                 table += asks_it.next();
             }
             else {
-                table += padLeft("", 7) + "|";
-                table += padLeft("", 10) + "|";
-                table += padLeft("", 13);
+                table += padLeft("", PRICE_PAD) + "|";
+                table += padLeft("", VOLUME_PAD) + "|";
+                table += padLeft("", ID_PAD);
             }
             table += "|\n";
         }
