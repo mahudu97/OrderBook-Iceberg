@@ -18,6 +18,12 @@ abstract class Order {
     private short price;
     private int quantity;
 
+    public Order(int id, short price, int quantity) {
+        this.id = id;
+        this.price = price;
+        this.quantity = quantity;
+    }
+
     private static final int ID_PAD = 10;
     private static final int VOLUME_PAD = 13;
     private static final int PRICE_PAD = 7;
@@ -45,9 +51,7 @@ abstract class Order {
 
 class LimitOrder extends Order {
     public LimitOrder(int id, short price, int quantity) {
-        id = id;
-        price = price;
-        quantity = quantity;
+       super(id, price, quantity);
     }
 }
 
@@ -56,11 +60,9 @@ class IcebergOrder extends Order {
     private int peak_size;
 
     public IcebergOrder(int id, short price, int quantity, int peak_size) {
-        id = id;
-        price = price;
-        quantity = quantity;
-        total_quantity = quantity;
-        peak_size = peak_size;
+        super(id, price, quantity);
+        this.total_quantity = quantity;
+        this.peak_size = peak_size;
     }
 }
 
@@ -78,8 +80,8 @@ class OrderBook {
     }
 
     private static class ParseOrderResult {
-        boolean isBuy;
-        Order order;
+        private boolean isBuy;
+        private Order order;
     }
 
     // method assumes order is a csv order (Limit or Iceberg)
@@ -114,6 +116,10 @@ class OrderBook {
     private List<String> matchEngine(ParseOrderResult por) {
         List<String> trades = new LinkedList<String>();
 
+        // match against book
+
+        // add to book
+
         return trades;
     }
 
@@ -127,9 +133,8 @@ class OrderBook {
             while ((line = reader.readLine()) != null) {
                 if (line.charAt(0) == 'B' || line.charAt(0) == 'S') {
                     ParseOrderResult por = book.parseOrderLine(line);
-                    List<String> resultingTradeMsgs;
 
-                    resultingTradeMsgs = book.matchEngine(por);
+                    List<String> resultingTradeMsgs = book.matchEngine(por);
 
                     for (String tm : resultingTradeMsgs) {
                         System.out.println(tm);
