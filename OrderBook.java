@@ -1,3 +1,6 @@
+// Expecting to be ran as something like: $ cat test.txt | java OrderBook
+// where test.txt conforms to the inpput spec.
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -42,6 +45,8 @@ abstract class Order {
     }
 
     public abstract int trade(Order against);
+
+    // called from another Order object via trade()
     public abstract void requestTrade(Integer amount);
 
     private static final int ID_PAD = 10;
@@ -118,7 +123,8 @@ class IcebergOrder extends Order {
         this.total_quantity -= amount;
 
         if (this.getQuantity() == 0 && total_quantity > 0) {
-            this.setQuantity(this.peak_size);
+            Integer showQuantity = (total_quantity > peak_size) ? peak_size : total_quantity; 
+            this.setQuantity(showQuantity);
         }
     }
 }
@@ -154,6 +160,7 @@ class OrderBook {
         asks = new TreeMap<>();
     }
 
+    // purge prices from book that have no active orders
     private void cleanBook(TreeMap<Short, List<Order>> book, List<Short> depletedPrices) {
         for (Short price : depletedPrices) {
             book.remove(price);
@@ -189,7 +196,7 @@ class OrderBook {
         return por;
     }
 
-    // Adds an order to a book (bids or asks) if not filled.
+    // Adds an order to a book (bids or asks)
     private void addOrderToBook(Order order, TreeMap<Short, List<Order>> book) {
         if (order.getQuantity() != 0) {
             Short price = order.getPrice();
@@ -205,10 +212,11 @@ class OrderBook {
         // if multiple trades made with same IDs, first tradeMsg will have its amount updated
         Map<Integer, TradeMessage> traders = new LinkedHashMap<Integer, TradeMessage>();
 
-        // keep trading at this price until exhausted either book or new order
+        // keep trading at this price until exhausted either price or new order quantity
         while (!ordersAtThisPrice.isEmpty() && fillOrder.getQuantity() != 0) {
-            // iterate through all orders at this price
+            // iterate through all orders in the book at this price
             for (Order orderInBook : ordersAtThisPrice) {
+                // break early if new order filled
                 if (fillOrder.getQuantity() == 0) {
                     break;
                 }
@@ -216,6 +224,7 @@ class OrderBook {
                 Integer trader = orderInBook.getId();    
                 Integer tradeAmount = fillOrder.trade(orderInBook);
     
+                // record trade
                 if (traders.containsKey(trader)) {
                     traders.get(trader).updateQuantity(tradeAmount);
                 }
@@ -223,20 +232,20 @@ class OrderBook {
                     traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, tradeAmount));
                 }
             }
-            // remove any orders that have been effected
+            // remove any orders from the book at this price, that have been effected/filled
             ordersAtThisPrice.removeIf(n -> (n.getQuantity() == 0));
         }
 
+        // build output strings for trade messages
         for(Map.Entry<Integer,TradeMessage> entry : traders.entrySet()) {
             tradeLog.add(entry.getValue().toStr());
         }
     }
 
-    // Modifies this OrderBook bids and asks maps
-    // Will request IcebergOrder objects to update if traded.
+    // Modifies this OrderBook's bids and asks
     // Returns list of reulting trades.
     private List<String> matchEngine(ParseOrderResult por) {
-        List<String> trades = new LinkedList<String>();
+        List<String> trades = new ArrayList<String>();
         List<Short> depletedPrices = new ArrayList<Short>();
 
         if (por.isBuy) {
