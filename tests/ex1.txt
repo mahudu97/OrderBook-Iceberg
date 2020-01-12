@@ -1,0 +1,17 @@
+# set up book
+B,1,99,50000
+B,2,98,25500
+S,3,100,10000
+S,4,100,7500
+S,5,101,20000
+# iceberg
+B,6,100,100000,10000
+# at best income sell
+S,7,1,10000
+# at best to sell 11k
+S,8,1,11000
+# 2nd iceberg
+B,9,100,50000,20000
+# at best sell 35K
+S,10,1,35000
+# fail - 2nd iceberg ends up taking priority, should be given to first

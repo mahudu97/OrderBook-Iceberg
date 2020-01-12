@@ -41,7 +41,7 @@ abstract class Order {
         this.quantity = quantity;
     }
 
-    public abstract void trade(Order against);
+    public abstract int trade(Order against);
     public abstract void requestTrade(Integer amount);
 
     private static final int ID_PAD = 10;
@@ -74,11 +74,12 @@ class LimitOrder extends Order {
        super(id, price, quantity);
     }
 
-    public void trade(Order against) {
+    public int trade(Order against) {
         Integer amount = Math.min(this.getQuantity(), against.getQuantity());
 
         this.setQuantity(this.getQuantity()-amount);
         against.requestTrade(amount);
+        return amount;
     }
 
     public void requestTrade(Integer amount) {
@@ -97,16 +98,18 @@ class IcebergOrder extends Order {
         this.peak_size = peak_size;
     }
 
-    public void trade(Order against) {
+    public int trade(Order against) {
         Integer amount = Math.min(this.getQuantity(), against.getQuantity());
 
-        this.setQuantity(this.getQuantity()-amount);
         this.total_quantity -= amount;
         against.requestTrade(amount);
 
-        if (this.getQuantity() == 0 && total_quantity > 0) {
-            this.setQuantity(this.peak_size);
-        }
+        // since this method is only called when a new Iceberg is being entered,
+        // show peak size, is possible, regardless of trade amount
+        Integer showQuantity = (total_quantity > peak_size) ? peak_size : total_quantity; 
+        this.setQuantity(showQuantity);
+
+        return amount;
     }
 
     public void requestTrade(Integer amount) {
@@ -202,15 +205,13 @@ class OrderBook {
                 break;
             }
 
-            Integer quantBefore = fillOrder.getQuantity();
-            fillOrder.trade(orderInBook);
-            Integer quantAfter = fillOrder.getQuantity();
+            Integer tradeAmount = fillOrder.trade(orderInBook);
 
             if (traders.containsKey(trader)) {
-                traders.get(trader).updateQuantity((quantBefore-quantAfter));
+                traders.get(trader).updateQuantity(tradeAmount);
             }
             else {
-                traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, (quantBefore-quantAfter)));
+                traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, tradeAmount));
             }
 
             // place order from back at back of the list if not fully 
