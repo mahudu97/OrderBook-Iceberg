@@ -201,36 +201,30 @@ class OrderBook {
     }
 
     private void tradeAtPrice(Short price, Order fillOrder, List<Order> ordersAtThisPrice, List<String> tradeLog) {
+        // remember order of TradeMessages
+        // if multiple trades made with same IDs, first tradeMsg will have its amount updated
         Map<Integer, TradeMessage> traders = new LinkedHashMap<Integer, TradeMessage>();
 
-        // to fix priority - will only ever reachn Order again if it was iceberg,
-        //so can deplete until all non-ice are dealt with - then iterate through iceberge only and remove only if effected
+        // keep trading at this price until exhausted either book or new order
+        while (!ordersAtThisPrice.isEmpty() && fillOrder.getQuantity() != 0) {
+            // iterate through all orders at this price
+            for (Order orderInBook : ordersAtThisPrice) {
+                if (fillOrder.getQuantity() == 0) {
+                    break;
+                }
 
-        // better - iterate through List and remove only if quant after trade is 0
-
-        while (!ordersAtThisPrice.isEmpty()) {
-            Order orderInBook = ordersAtThisPrice.get(0);
-            Integer trader = orderInBook.getId();
-            // match at this price until exhausted price point, or order filled
-            if (fillOrder.getQuantity() == 0) {
-                break;
+                Integer trader = orderInBook.getId();    
+                Integer tradeAmount = fillOrder.trade(orderInBook);
+    
+                if (traders.containsKey(trader)) {
+                    traders.get(trader).updateQuantity(tradeAmount);
+                }
+                else {
+                    traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, tradeAmount));
+                }
             }
-
-            Integer tradeAmount = fillOrder.trade(orderInBook);
-
-            if (traders.containsKey(trader)) {
-                traders.get(trader).updateQuantity(tradeAmount);
-            }
-            else {
-                traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, tradeAmount));
-            }
-
-            // place order from back at back of the list if not fully 
-            if (orderInBook.getQuantity() != 0) {
-                ordersAtThisPrice.add(orderInBook);
-            }
-            // pop order from head
-            ordersAtThisPrice.remove(0);
+            // remove any orders that have been effected
+            ordersAtThisPrice.removeIf(n -> (n.getQuantity() == 0));
         }
 
         for(Map.Entry<Integer,TradeMessage> entry : traders.entrySet()) {
