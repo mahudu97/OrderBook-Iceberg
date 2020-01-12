@@ -154,6 +154,12 @@ class OrderBook {
         asks = new TreeMap<>();
     }
 
+    private void cleanBook(TreeMap<Short, List<Order>> book, List<Short> depletedPrices) {
+        for (Short price : depletedPrices) {
+            book.remove(price);
+        }
+    }
+
     private static class ParseOrderResult {
         private boolean isBuy;
         private Order order;
@@ -197,6 +203,11 @@ class OrderBook {
     private void tradeAtPrice(Short price, Order fillOrder, List<Order> ordersAtThisPrice, List<String> tradeLog) {
         Map<Integer, TradeMessage> traders = new LinkedHashMap<Integer, TradeMessage>();
 
+        // to fix priority - will only ever reachn Order again if it was iceberg,
+        //so can deplete until all non-ice are dealt with - then iterate through iceberge only and remove only if effected
+
+        // better - iterate through List and remove only if quant after trade is 0
+
         while (!ordersAtThisPrice.isEmpty()) {
             Order orderInBook = ordersAtThisPrice.get(0);
             Integer trader = orderInBook.getId();
@@ -232,6 +243,7 @@ class OrderBook {
     // Returns list of reulting trades.
     private List<String> matchEngine(ParseOrderResult por) {
         List<String> trades = new LinkedList<String>();
+        List<Short> depletedPrices = new ArrayList<Short>();
 
         if (por.isBuy) {
             for(Map.Entry<Short,List<Order>> entry : asks.entrySet()) {
@@ -243,9 +255,15 @@ class OrderBook {
                 List<Order> ordersAtThisPrice = entry.getValue();
 
                 tradeAtPrice(price, por.order, ordersAtThisPrice, trades);
+
+                if (ordersAtThisPrice.isEmpty()) {
+                    depletedPrices.add(price);
+                }
             }
             // if not entirely filled - add to bids book
             addOrderToBook(por.order, bids);
+            // remove prices from asks that no longer have any orders
+            cleanBook(asks, depletedPrices);
         }
         else {
             for(Map.Entry<Short,List<Order>> entry : bids.entrySet()) {
@@ -257,9 +275,14 @@ class OrderBook {
                 List<Order> ordersAtThisPrice = entry.getValue();
 
                 tradeAtPrice(price, por.order, ordersAtThisPrice, trades);
+                if (ordersAtThisPrice.isEmpty()) {
+                    depletedPrices.add(price);
+                }
             }
             // if not entirely filled - add to asks book
             addOrderToBook(por.order, asks);
+            // remove prices from bids that no longer have any orders
+            cleanBook(bids, depletedPrices);
         }
 
         return trades;
