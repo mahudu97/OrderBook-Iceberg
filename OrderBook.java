@@ -273,6 +273,9 @@ class OrderBook {
 
         try {
             while ((line = reader.readLine()) != null) {
+                if (line.isEmpty()) {
+                    continue;
+                }
                 if (line.charAt(0) == 'B' || line.charAt(0) == 'S') {
                     ParseOrderResult por = book.parseOrderLine(line);
 
