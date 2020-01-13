@@ -1,5 +1,5 @@
 // Expecting to be ran as something like: $ cat test.txt | java OrderBook
-// where test.txt conforms to the inpput spec.
+// where test.txt conforms to the input spec.
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -212,14 +212,15 @@ class OrderBook {
         // if multiple trades made with same IDs, first tradeMsg will have its amount updated
         Map<Integer, TradeMessage> traders = new LinkedHashMap<Integer, TradeMessage>();
 
+        // track index of order from book traded against last
+        int lastOrderTradedIdx = -1;
+
         // keep trading at this price until exhausted either price or new order quantity
         while (!ordersAtThisPrice.isEmpty() && fillOrder.getQuantity() != 0) {
+            lastOrderTradedIdx = -1;
             // iterate through all orders in the book at this price
             for (Order orderInBook : ordersAtThisPrice) {
-                // break early if new order filled
-                if (fillOrder.getQuantity() == 0) {
-                    break;
-                }
+                lastOrderTradedIdx++;
 
                 Integer trader = orderInBook.getId();    
                 Integer tradeAmount = fillOrder.trade(orderInBook);
@@ -230,6 +231,12 @@ class OrderBook {
                 }
                 else {
                     traders.put(trader, new TradeMessage(fillOrder.getId(), trader, price, tradeAmount));
+                }
+                // break early if new order filled
+                if (fillOrder.getQuantity() == 0) {
+                    // rotate list so last order traded against becomes head
+                    Collections.rotate(ordersAtThisPrice, -lastOrderTradedIdx);
+                    break;
                 }
             }
             // remove any orders from the book at this price, that have been effected/filled
@@ -271,7 +278,7 @@ class OrderBook {
         else {
             for(Map.Entry<Short,List<Order>> entry : bids.entrySet()) {
                 Short price = entry.getKey();
-                // iterate through sells until price < order.price or order filled
+                // iterate through bids until price < order.price or order filled
                 if (price < por.order.getPrice() || por.order.getQuantity() == 0) {
                     break;
                 }
